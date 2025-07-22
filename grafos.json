@@ -1,0 +1,28 @@
+{
+  "TresVerticesConectados": {
+    "_listaAdyacencia": [
+      {
+        "_vertice": 0,
+        "_vecinos": [
+          1,
+          2
+        ]
+      },
+      {
+        "_vertice": 1,
+        "_vecinos": [
+          0,
+          2
+        ]
+      },
+      {
+        "_vertice": 2,
+        "_vecinos": [
+          0,
+          1
+        ]
+      }
+    ],
+    "_tamano": 3
+  }
+}
