@@ -1,100 +1,182 @@
 # CDM Calculator
 
-Aplicación de escritorio en **Java + Swing** para modelar grafos no dirigidos y resolver el problema del **Conjunto Dominante Mínimo (CDM)** con distintos enfoques: **backtracking** y variantes **golosas** (ascendente, descendente y aleatoria).
+Desktop application for building undirected graphs and solving the **Minimum Dominating Set (MDS / CDM)** problem using both an exact approach (backtracking) and heuristic approaches (greedy orderings).
 
-## ¿Qué problema resuelve?
+## Overview
 
-En teoría de grafos, un conjunto dominante es un subconjunto de vértices tal que cada vértice del grafo pertenece al conjunto o es adyacente a alguno de sus vértices. El objetivo del CDM es encontrar uno de tamaño mínimo.
+This project combines an interactive Swing graph editor with algorithmic solvers for a classic NP-hard graph problem.
 
-Este proyecto permite:
-- Dibujar/editar grafos visualmente.
-- Guardar y cargar instancias desde JSON.
-- Ejecutar diferentes estrategias para obtener un conjunto dominante.
-- Visualizar resultados directamente en la interfaz.
+It was built to make two things observable in the same environment:
 
-## Funcionalidades principales
+1. **Graph modeling workflows** (create vertices/edges, inspect adjacency, persist and reload scenarios).
+2. **Algorithm behavior trade-offs** between optimal search and faster heuristics.
 
-- **Editor de grafos en GUI (Swing)**
-  - Agregar/eliminar vértices.
-  - Crear/eliminar aristas desde el panel gráfico.
-  - Visualizar lista de adyacencia en tiempo real.
+The tool is aimed at students and engineers who want to experiment with graph instances, compare solver outputs, and understand how implementation choices affect solution quality.
 
-- **Persistencia en JSON**
-  - Guardado de grafos por nombre en `grafos.json`.
-  - Carga de grafos previamente almacenados.
+## Key Features
 
-- **Resolución del CDM**
-  - **Backtracking** (explora combinaciones y conserva la mejor).
-  - **Goloso** con tres estrategias de ordenamiento:
-    - Aleatorio.
-    - Por grado ascendente.
-    - Por grado descendente.
+- Interactive graph editor:
+  - add/remove vertices,
+  - create edges by selecting two nodes,
+  - drag vertices while keeping incident edges synchronized,
+  - block duplicated edges in the visual layer.
+- Real-time adjacency list visualization in the side panel.
+- JSON persistence of multiple named graphs in a single file (`grafos.json`).
+- Three greedy strategies selectable at runtime:
+  - random ordering,
+  - ascending degree,
+  - descending degree.
+- Exact solver with backtracking that evaluates subsets and keeps the best dominating set found.
+- Visual highlighting of the resulting dominating set directly on the graph.
 
-## Arquitectura del proyecto
+## Architecture
 
-El código está organizado en paquetes dentro de `negocio/`:
+The codebase follows a modular package split with clear responsibilities:
 
-- `grafo/`
-  - Modelo de grafo no dirigido mediante lista de adyacencia (`Grafo`, `Vecindario`).
-- `conjuntoDominanteMinimo/`
-  - Solvers del CDM (`SolverConBacktracking`, `SolverGoloso`) y estrategias `Sorter`.
-- `interfaz/`
-  - Interfaz Swing (`PantallaPrincipal`, `JPanelGrafo`, componentes gráficos de vértices/aristas).
-- `datos/`
-  - Lectura/escritura de JSON (`ArchivoJSON`) usando Gson.
+- `negocio/grafo` (domain model)
+  - `Grafo`: undirected graph implemented as adjacency lists (`List<Vecindario>`).
+  - `Vecindario`: vertex + neighbor set abstraction (`HashSet<Integer>`).
+  - responsibility: graph invariants, adjacency operations, validation.
 
-## Requisitos
+- `negocio/conjuntoDominanteMinimo` (algorithm layer)
+  - `SolverConBacktracking`: exhaustive search with pruning by current best set size.
+  - `SolverGoloso`: generic greedy pipeline.
+  - `Sorter` + concrete implementations: strategy pattern to define vertex ordering independently from solver logic.
+  - responsibility: MDS solving strategies and extensibility point for new heuristics.
 
-- **Java 8+** (recomendado 11 o superior).
-- Dependencia incluida localmente:
-  - `lib/gson-2.6.2.jar`
-- (Opcional para tests) JUnit 4 en el classpath.
+- `negocio/interfaz` (presentation + interaction)
+  - `PantallaPrincipal`: main window, controls, algorithm triggers, persistence actions.
+  - `JPanelGrafo`: drawing surface, mouse interaction, graph manipulation, result coloring.
+  - `VerticeGrafico` / `AristaGrafica`: rendering primitives.
+  - responsibility: user interaction and visualization.
 
-## Ejecución
+- `negocio/datos` (persistence)
+  - `ArchivoJSON`: JSON read/write via Gson for named graph storage.
 
-### Opción 1: desde Eclipse (recomendada para este repo)
+### Interaction flow
 
-El repositorio incluye archivos de proyecto Eclipse (`.project` y `.classpath`).
+1. UI events mutate `JPanelGrafo`.
+2. `JPanelGrafo` updates `Grafo` (domain model) and redraws visual elements.
+3. Solver execution receives current `Grafo` and returns a dominating set.
+4. UI paints selected vertices in a different color.
+5. Save/load operations serialize/deserialize graphs through `ArchivoJSON`.
 
-1. Importar como proyecto Java existente.
-2. Verificar que `lib/gson-2.6.2.jar` esté en el Build Path.
-3. Ejecutar la clase principal:
+## Tech Stack
+
+- **Language:** Java
+- **UI Framework:** Swing/AWT (desktop-native event-driven UI)
+- **Serialization:** Gson (`lib/gson-2.6.2.jar`)
+- **Testing:** JUnit 4 style tests (included in source tree)
+- **Project tooling:** Eclipse project metadata (`.project`, `.classpath`) plus CLI-compatible Java sources
+
+## Notable Implementation Details
+
+- **Adjacency representation optimized for membership checks:**
+  - Neighbor lists use `HashSet<Integer>`, so edge existence and insert/remove operations are constant-time on average.
+
+- **Graph invariant enforcement in the model layer:**
+  - `Grafo` validates negative indices, out-of-range vertices, and loops before mutating adjacency.
+  - This keeps correctness rules centralized instead of duplicating checks in UI or solvers.
+
+- **Backtracking with branch-and-bound style pruning:**
+  - The solver explores inclusion/exclusion of each vertex.
+  - Recursive branches are only expanded when the partial solution can still beat the current best.
+  - This does not change worst-case complexity but reduces unnecessary exploration.
+
+- **Strategy pattern for greedy experiments:**
+  - `Sorter<Vecindario>` decouples ordering policy from greedy selection logic.
+  - Enables swapping heuristics without changing solver internals.
+
+- **Dominance verification design:**
+  - `esDominante` builds a `marcados` set and removes dominated vertices (selected vertices + neighbors).
+  - A set is dominating iff no vertex remains unmarked.
+
+- **UI synchronization details:**
+  - Dragging a node updates all incident edge coordinates.
+  - Loading from JSON rebuilds both model and visual graph state.
+
+## How to Run the Project
+
+### Prerequisites
+
+- Java 8+ (Java 11+ recommended)
+- Gson jar included at `lib/gson-2.6.2.jar`
+
+### Option 1: Eclipse
+
+1. Import as an existing Java project.
+2. Ensure `lib/gson-2.6.2.jar` is on the classpath.
+3. Run:
 
 ```java
 interfaz.PantallaPrincipal
 ```
 
-### Opción 2: por línea de comandos
+### Option 2: Command line
 
-Compilar fuentes (sin tests):
+Compile application classes (excluding tests):
 
 ```bash
 mkdir -p out
-javac -cp lib/gson-2.6.2.jar -d out $(find negocio -name "*.java" ! -name "*Test.java" ! -path "negocio/grafo/Auxiliar.java")
+javac -cp lib/gson-2.6.2.jar -d out $(find negocio -name "*.java" ! -name "*Test.java" ! -name "Auxiliar.java" ! -name "StressTest.java")
 ```
 
-Ejecutar:
+Run:
 
 ```bash
 java -cp out:lib/gson-2.6.2.jar interfaz.PantallaPrincipal
 ```
 
-> En Windows usa `;` en lugar de `:` en el classpath.
+On Windows, replace `:` with `;` in the classpath.
 
-## Tests
+## Example Usage
 
-El repositorio incluye tests unitarios para estructuras de grafo y solvers en:
-- `negocio/grafo/*Test.java`
-- `negocio/conjuntoDominanteMinimo/*Test.java`
+1. Start the app.
+2. Add several vertices.
+3. Create edges by clicking two vertices.
+4. Execute:
+   - **Resolver con Backtracking** for an exact solution, or
+   - any **Resolver con Goloso** variant for heuristic solutions.
+5. Compare highlighted vertices (orange) and adjacency list output.
+6. Save the graph with a custom name and reload it later.
 
-Para ejecutarlos por CLI necesitarás agregar JUnit 4 al classpath (el JAR no está versionado en este repo).
+## Project Structure
 
-> Nota: `negocio/grafo/Auxiliar.java` también usa utilidades de JUnit, por eso la compilación de la app sin tests lo excluye explícitamente.
+```text
+.
+├── negocio/
+│   ├── conjuntoDominanteMinimo/
+│   │   ├── SolverConBacktracking.java
+│   │   ├── SolverGoloso.java
+│   │   ├── Sorter.java
+│   │   └── Sorter*.java
+│   ├── datos/
+│   │   └── ArchivoJSON.java
+│   ├── grafo/
+│   │   ├── Grafo.java
+│   │   ├── Vecindario.java
+│   │   └── *Test.java / Auxiliar.java
+│   └── interfaz/
+│       ├── PantallaPrincipal.java
+│       ├── JPanelGrafo.java
+│       ├── VerticeGrafico.java
+│       └── AristaGrafica.java
+├── images/
+├── lib/
+│   └── gson-2.6.2.jar
+└── grafos.json
+```
 
-## Vista previa
+## Future Improvements
 
-https://github.com/user-attachments/assets/3967a42e-e3f2-48c6-8aa4-fec356adc52b
+- Add reproducible benchmarking suite comparing greedy variants vs exact solver by graph family.
+- Introduce immutable graph snapshots for safer persistence and solver isolation.
+- Add import/export formats beyond JSON (e.g., edge list, GraphML).
+- Improve greedy quality with tie-breakers and local search post-processing.
+- Separate UI and application services further to ease headless testing.
+- Add CI workflow to compile and execute unit tests automatically.
 
-## Estado del proyecto
+## Author
 
-Proyecto académico/experimental orientado a visualización y comparación de estrategias para CDM.
+Developed as a graph algorithms and software design project focused on combining interactive visualization with algorithmic experimentation.
+
